@@ -68,7 +68,7 @@ pip install PyQt5 pyqtgraph numpy adi
 
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
+   git clone git@github.com:karu2003/rssi_868.git
    cd rssi_868
    ```
 
