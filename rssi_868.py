@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import (
     QProgressBar,
     QTextEdit,
     QSplitter,
+    QCheckBox,
 )
 from PyQt5.QtCore import QTimer, QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QFont
@@ -646,6 +647,14 @@ class PowerAnalyzer(QMainWindow):
         self.auto_log_checkbox.setText(self.lang.get_text("auto_log"))
         self.clear_log_btn.setText(self.lang.get_text("clear_log"))
         
+        # Обновляем HOLD элементы, если они существуют
+        if hasattr(self, 'hold_checkbox'):
+            self.hold_checkbox.setText(self.lang.get_text("hold_enable"))
+            self.hold_checkbox.setToolTip(self.lang.get_text("hold_tooltip"))
+        if hasattr(self, 'hold_clear_btn'):
+            self.hold_clear_btn.setText(self.lang.get_text("hold_clear"))
+            self.hold_clear_btn.setToolTip(self.lang.get_text("hold_clear_tooltip"))
+        
         # Обновляем кнопки предустановок
         for preset_key, button in self.preset_buttons.items():
             button.setText(self.lang.get_text(preset_key))
@@ -671,6 +680,10 @@ class PowerAnalyzer(QMainWindow):
         
         # Сохраняем состояние подключения
         is_connected = self.disconnect_btn.isEnabled()
+        
+        # Сохраняем состояние HOLD
+        hold_checked = self.hold_checkbox.isChecked() if hasattr(self, 'hold_checkbox') else False
+        saved_hold_data = self.fft_hold_data.copy() if hasattr(self, 'fft_hold_data') and self.fft_hold_data is not None else None
         
         # Сохраняем исторические данные графиков
         saved_time_history = self.time_history.copy() if hasattr(self, 'time_history') else []
@@ -760,6 +773,18 @@ class PowerAnalyzer(QMainWindow):
         self.peak_power_label.setText(current_peak_power_text)
         self.dominant_freq_label.setText(current_dominant_freq_text)
         self.freq_offset_label.setText(current_freq_offset_text)
+        
+        # Восстанавливаем состояние HOLD
+        if hasattr(self, 'hold_checkbox'):
+            self.hold_checkbox.setChecked(hold_checked)
+        if saved_hold_data is not None:
+            self.fft_hold_data = saved_hold_data
+            # Восстанавливаем отображение HOLD кривой, если она была активна
+            if hold_checked and len(saved_freq_axis) > 0:
+                saved_absolute_freq_axis = saved_freq_axis + saved_center_freq
+                saved_absolute_freq_axis_mhz = saved_absolute_freq_axis / 1e6
+                if hasattr(self, 'fft_hold_curve'):
+                    self.fft_hold_curve.setData(saved_absolute_freq_axis_mhz, saved_hold_data)
 
     def update_line_labels(self):
         """Обновление подписей линий на графике после смены языка"""
@@ -829,7 +854,29 @@ class PowerAnalyzer(QMainWindow):
         
         # Добавляем легенду
         self.fft_plot.addLegend()
-
+        
+        # Создаем кривую для HOLD (максимальных значений)
+        self.fft_hold_curve = self.fft_plot.plot(
+            pen=pg.mkPen(color='cyan', width=1, style=pg.QtCore.Qt.DashLine), 
+            name=self.lang.get_text("hold_legend")
+        )
+        self.fft_hold_data = None  # Массив для хранения максимальных значений
+        
+        # Элементы управления HOLD
+        hold_controls = QHBoxLayout()
+        
+        self.hold_checkbox = QCheckBox(self.lang.get_text("hold_enable"))
+        self.hold_checkbox.setToolTip(self.lang.get_text("hold_tooltip"))
+        hold_controls.addWidget(self.hold_checkbox)
+        
+        self.hold_clear_btn = QPushButton(self.lang.get_text("hold_clear"))
+        self.hold_clear_btn.setToolTip(self.lang.get_text("hold_clear_tooltip"))
+        self.hold_clear_btn.clicked.connect(self.clear_hold_data)
+        hold_controls.addWidget(self.hold_clear_btn)
+        
+        hold_controls.addStretch()  # Добавляем растяжку для выравнивания влево
+        
+        fft_layout.addLayout(hold_controls)
         fft_layout.addWidget(self.fft_plot)
 
         # RSSI график во времени
@@ -1014,6 +1061,20 @@ class PowerAnalyzer(QMainWindow):
         absolute_freq_axis_mhz = absolute_freq_axis / 1e6
         self.fft_curve.setData(absolute_freq_axis_mhz, fft_data)
         
+        # Обрабатываем HOLD данные
+        if hasattr(self, 'hold_checkbox') and self.hold_checkbox.isChecked():
+            # Если HOLD включен, обновляем максимальные значения
+            if self.fft_hold_data is None or len(self.fft_hold_data) != len(fft_data):
+                # Инициализируем или пересоздаем массив HOLD данных
+                self.fft_hold_data = fft_data.copy()
+            else:
+                # Обновляем максимальные значения
+                self.fft_hold_data = np.maximum(self.fft_hold_data, fft_data)
+            
+            # Обновляем кривую HOLD
+            if hasattr(self, 'fft_hold_curve'):
+                self.fft_hold_curve.setData(absolute_freq_axis_mhz, self.fft_hold_data)
+        
         # Обновляем или добавляем маркер доминирующей частоты
         if hasattr(self, 'peak_marker'):
             self.fft_plot.removeItem(self.peak_marker)
@@ -1122,6 +1183,13 @@ class PowerAnalyzer(QMainWindow):
         self.detection_threshold_line.setPos(value)
         self.detection_threshold_line.blockSignals(False)
         self.log_message(self.lang.get_text("detection_threshold_changed", value))
+
+    def clear_hold_data(self):
+        """Очистка данных HOLD"""
+        self.fft_hold_data = None
+        if hasattr(self, 'fft_hold_curve'):
+            self.fft_hold_curve.setData([], [])
+        self.log_message("HOLD данные очищены")
 
     def on_detection_line_moved(self, line):
         """Обработка перемещения линии порога обнаружения на графике"""

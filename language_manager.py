@@ -110,6 +110,13 @@ class LanguageManager:
                 "dbm_unit": "дБм",
                 "sec_unit": "с",
                 "spectrum_legend": "Спектр",
+                "hold_legend": "HOLD",
+                
+                # HOLD функции
+                "hold_enable": "HOLD",
+                "hold_clear": "Очистить HOLD",
+                "hold_tooltip": "Включить режим удержания максимальных значений спектра",
+                "hold_clear_tooltip": "Очистить сохраненные максимальные значения",
                 
                 # Подписи линий на графике
                 "detection_line_label": "Детекция",
@@ -212,6 +219,13 @@ class LanguageManager:
                 "dbm_unit": "dBm",
                 "sec_unit": "s",
                 "spectrum_legend": "Spectrum",
+                "hold_legend": "HOLD",
+                
+                # HOLD functions
+                "hold_enable": "HOLD",
+                "hold_clear": "Clear HOLD",
+                "hold_tooltip": "Enable spectrum maximum values hold mode",
+                "hold_clear_tooltip": "Clear saved maximum values",
                 
                 # Line labels on graph
                 "detection_line_label": "Detection",
@@ -314,6 +328,13 @@ class LanguageManager:
                 "dbm_unit": "dBm",
                 "sec_unit": "s",
                 "spectrum_legend": "Spektrum",
+                "hold_legend": "HOLD",
+                
+                # HOLD Funktionen
+                "hold_enable": "HOLD",
+                "hold_clear": "HOLD löschen",
+                "hold_tooltip": "Spektrum-Maximalwerte-Haltemodus aktivieren",
+                "hold_clear_tooltip": "Gespeicherte Maximalwerte löschen",
                 
                 # Linienbeschriftungen im Diagramm
                 "detection_line_label": "Erkennung",
