@@ -672,6 +672,21 @@ class PowerAnalyzer(QMainWindow):
         # Сохраняем состояние подключения
         is_connected = self.disconnect_btn.isEnabled()
         
+        # Сохраняем исторические данные графиков
+        saved_time_history = self.time_history.copy() if hasattr(self, 'time_history') else []
+        saved_rssi_history = self.rssi_history.copy() if hasattr(self, 'rssi_history') else []
+        saved_peak_power_history = self.peak_power_history.copy() if hasattr(self, 'peak_power_history') else []
+        saved_freq_axis = self.freq_axis.copy() if hasattr(self, 'freq_axis') else []
+        saved_fft_data = None
+        if hasattr(self, 'fft_curve') and self.fft_curve.getData()[1] is not None:
+            saved_fft_data = self.fft_curve.getData()[1].copy()
+        
+        # Сохраняем текущие значения меток
+        current_rssi_text = self.rssi_label.text() if hasattr(self, 'rssi_label') else "-"
+        current_peak_power_text = self.peak_power_label.text() if hasattr(self, 'peak_power_label') else "-"
+        current_dominant_freq_text = self.dominant_freq_label.text() if hasattr(self, 'dominant_freq_label') else "-"
+        current_freq_offset_text = self.freq_offset_label.text() if hasattr(self, 'freq_offset_label') else "-"
+        
         # Очищаем splitter
         while self.main_splitter.count() > 0:
             widget = self.main_splitter.widget(0)
@@ -717,6 +732,30 @@ class PowerAnalyzer(QMainWindow):
         
         # Обновляем подписи линий на графике
         self.update_line_labels()
+        
+        # Восстанавливаем исторические данные графиков
+        if saved_time_history:
+            self.time_history = saved_time_history
+        if saved_rssi_history:
+            self.rssi_history = saved_rssi_history
+        if saved_peak_power_history:
+            self.peak_power_history = saved_peak_power_history
+        if len(saved_freq_axis) > 0:
+            self.freq_axis = saved_freq_axis
+            
+        # Восстанавливаем данные на графиках
+        if saved_rssi_history and saved_time_history:
+            self.rssi_curve.setData(saved_time_history, saved_rssi_history)
+        if saved_peak_power_history and saved_time_history:
+            self.power_curve.setData(saved_time_history, saved_peak_power_history)
+        if saved_fft_data is not None and len(saved_freq_axis) > 0:
+            self.fft_curve.setData(saved_freq_axis, saved_fft_data)
+            
+        # Восстанавливаем текущие значения меток
+        self.rssi_label.setText(current_rssi_text)
+        self.peak_power_label.setText(current_peak_power_text)
+        self.dominant_freq_label.setText(current_dominant_freq_text)
+        self.freq_offset_label.setText(current_freq_offset_text)
 
     def update_line_labels(self):
         """Обновление подписей линий на графике после смены языка"""
