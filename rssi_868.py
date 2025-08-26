@@ -180,7 +180,7 @@ class SDRConfig:
 class PlutoThread(QThread):
     """Поток для работы с ADALM-PLUTO"""
 
-    data_ready = pyqtSignal(np.ndarray, float, float, dict)  # samples, rssi, peak_power, dominant_freq_info
+    data_ready = pyqtSignal(np.ndarray, float, float, dict, np.ndarray, float)  # fft_data, rssi, peak_power, dominant_freq_info, freq_axis, center_freq
     error_signal = pyqtSignal(str)
 
     def __init__(self):
@@ -295,7 +295,7 @@ class PlutoThread(QThread):
                 dominant_freq_info = self.find_dominant_frequency(fft_magnitude, freq_axis)
 
                 # Отправка данных в основной поток
-                self.data_ready.emit(fft_magnitude, rssi, peak_power, dominant_freq_info)
+                self.data_ready.emit(fft_magnitude, rssi, peak_power, dominant_freq_info, freq_axis, self.center_freq)
 
                 # Небольшая пауза
                 self.msleep(50)
@@ -677,6 +677,7 @@ class PowerAnalyzer(QMainWindow):
         saved_rssi_history = self.rssi_history.copy() if hasattr(self, 'rssi_history') else []
         saved_peak_power_history = self.peak_power_history.copy() if hasattr(self, 'peak_power_history') else []
         saved_freq_axis = self.freq_axis.copy() if hasattr(self, 'freq_axis') else []
+        saved_center_freq = current_freq * 1e6  # Сохраняем текущую центральную частоту
         saved_fft_data = None
         if hasattr(self, 'fft_curve') and self.fft_curve.getData()[1] is not None:
             saved_fft_data = self.fft_curve.getData()[1].copy()
@@ -749,7 +750,10 @@ class PowerAnalyzer(QMainWindow):
         if saved_peak_power_history and saved_time_history:
             self.power_curve.setData(saved_time_history, saved_peak_power_history)
         if saved_fft_data is not None and len(saved_freq_axis) > 0:
-            self.fft_curve.setData(saved_freq_axis, saved_fft_data)
+            # Создаем абсолютную частотную ось и конвертируем в МГц
+            saved_absolute_freq_axis = saved_freq_axis + saved_center_freq
+            saved_absolute_freq_axis_mhz = saved_absolute_freq_axis / 1e6
+            self.fft_curve.setData(saved_absolute_freq_axis_mhz, saved_fft_data)
             
         # Восстанавливаем текущие значения меток
         self.rssi_label.setText(current_rssi_text)
@@ -790,7 +794,7 @@ class PowerAnalyzer(QMainWindow):
 
         self.fft_plot = pg.PlotWidget()
         self.fft_plot.setLabel("left", self.lang.get_text("power_axis"), self.lang.get_text("db_unit"))
-        self.fft_plot.setLabel("bottom", self.lang.get_text("frequency_axis"), self.lang.get_text("hz_unit"))
+        self.fft_plot.setLabel("bottom", self.lang.get_text("frequency_axis"), "MHz")
         self.fft_plot.showGrid(True)
         # Устанавливаем диапазон оси Y по умолчанию для отображения сигналов до 200 дБ
         self.fft_plot.setYRange(-100, 200, padding=0)
@@ -963,8 +967,19 @@ class PowerAnalyzer(QMainWindow):
 
         self.log_message(self.lang.get_text("settings_updated", freq/1e6, sr/1e6))
 
-    def update_data(self, fft_data, rssi, peak_power, dominant_freq_info):
+    def update_data(self, fft_data, rssi, peak_power, dominant_freq_info, freq_axis, center_freq):
         """Обновление данных и графиков"""
+        # Обновляем частотную ось из полученных данных
+        self.freq_axis = freq_axis
+        
+        # Создаем абсолютную частотную ось (центральная частота + смещение)
+        absolute_freq_axis = freq_axis + center_freq
+        
+        # Устанавливаем диапазон частот на графике FFT (в МГц)
+        if len(absolute_freq_axis) > 0:
+            freq_min = absolute_freq_axis.min() / 1e6  # Конвертируем в МГц
+            freq_max = absolute_freq_axis.max() / 1e6
+            self.fft_plot.setXRange(freq_min, freq_max, padding=0.05)
         # Обновляем статус
         if not self.disconnect_btn.isEnabled():
             self.connect_btn.setEnabled(False)
@@ -995,21 +1010,22 @@ class PowerAnalyzer(QMainWindow):
             self.dominant_freq_label.setText(self.lang.get_text("not_detected"))
             self.freq_offset_label.setText("-")
 
-        # Обновляем FFT график
-        self.fft_curve.setData(self.freq_axis, fft_data)
+        # Обновляем FFT график (используем абсолютные частоты в МГц)
+        absolute_freq_axis_mhz = absolute_freq_axis / 1e6
+        self.fft_curve.setData(absolute_freq_axis_mhz, fft_data)
         
         # Обновляем или добавляем маркер доминирующей частоты
         if hasattr(self, 'peak_marker'):
             self.fft_plot.removeItem(self.peak_marker)
         
         if dominant_freq_info['detected']:
-            # Добавляем маркер на доминирующую частоту
-            freq_offset = dominant_freq_info['freq_offset']
+            # Добавляем маркер на доминирующую частоту (используем абсолютную частоту)
+            absolute_freq_mhz = dominant_freq_info['frequency'] / 1e6  # Абсолютная частота в МГц
             power_db = dominant_freq_info['power']
             
             # Создаем маркер в виде круга
             self.peak_marker = pg.ScatterPlotItem(
-                x=[freq_offset], 
+                x=[absolute_freq_mhz], 
                 y=[power_db], 
                 symbol='o', 
                 size=15, 
